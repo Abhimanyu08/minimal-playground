@@ -1,10 +1,10 @@
 import Editor from "@monaco-editor/react";
 import { useRouter } from "next/router";
 import { useEffect, useState } from "react";
-import { sendRequestToRceServer } from "../../utils/sendRequests";
 import { Terminal } from "xterm";
-import { AttachAddon } from "xterm-addon-attach";
 import "../../node_modules/xterm/lib/xterm.js";
+import { sendRequestToRceServer } from "../../utils/sendRequests";
+import { FileStructure } from "../../utils/DataStructure";
 
 function Playground() {
 	const router = useRouter();
@@ -15,83 +15,60 @@ function Playground() {
 		file: "print('different file')",
 	});
 	const [activeFileName, setActiveFileName] = useState("script");
-	const [socket, setSocket] = useState<WebSocket>();
-	const [connected, setConnected] = useState(false);
+	const [terminal, setTerminal] = useState<Terminal>();
+	const [fileSystemString, setFileSystemString] = useState(
+		".:\r\nnew src\r\n\r\n./new:\r\nmain.py\r\n\r\n./src:\r\nfile.py\tfiles\tfolder\tother.py\r\n\r\n./src/files:\r\nfile1.py\r\n\r\n./src/folder:\r\nhello.py\r\n"
+	);
 
 	useEffect(() => {
 		if (containerId !== undefined) return;
-		sendRequestToRceServer("POST", { language: type as string }).then(
-			(val) => {
-				val?.json().then((body) => {
-					setContainerId(body.containerId);
-				});
-			}
-		);
+		const createContainerResp = sendRequestToRceServer("POST", {
+			language: type as string,
+		}).then((val) => {
+			val?.json().then((body) => {
+				setContainerId(body.containerId);
+				// setFileSystemString(body.files);
+			});
+		});
 	}, []);
 
 	useEffect(() => {
-		if (connected || !containerId) return;
-
-		const socket = new WebSocket(
-			`ws://127.0.0.1:2375/containers/${containerId}/attach/ws?stream=1&stdout=1&stdin=0&logs=1`
-		);
-
-		socket.addEventListener("message", (ev) => {
-			console.log(ev);
-			setConnected(true);
+		const term = new Terminal({
+			disableStdin: false,
+			tabStopWidth: 4,
+			cursorBlink: true,
+			rows: 10,
+			cols: 100,
 		});
-		socket.addEventListener("open", (ev) => {
-			console.log("opened ev ->", ev);
-			socket.send("ls -l\n");
-		});
-		socket.addEventListener("close", (ev) => {
-			console.log("closing", ev);
-		});
-		socket.addEventListener("error", (ev) => {
-			console.log(ev);
-			setConnected(false);
-		});
-
-		setSocket(socket);
-		window.onbeforeunload = () => {
-			socket.close();
-		};
-		return () => {
-			socket.close();
-		};
-	}, [connected, containerId]);
-
-	useEffect(() => {
-		if (!socket) return;
-
-		const term = new Terminal();
-		const attachAddon = new AttachAddon(socket);
 		const terminalElem = document.getElementById("terminal");
 		terminalElem?.replaceChildren("");
 		if (terminalElem) term.open(terminalElem);
 
-		term.loadAddon(attachAddon);
-		term.onKey(({ key }) => term.write(key));
-	}, [socket]);
+		setTerminal(term);
+	}, []);
 
-	const onRunCode = async () => {
-		sendRequestToRceServer("POST", {
+	const onRunCode = async (terminal: Terminal | undefined) => {
+		if (!terminal) return;
+		const resp = await sendRequestToRceServer("POST", {
 			language: type as string,
 			code: filetoCode[activeFileName],
 			containerId,
 			fileName: activeFileName,
 		});
-	};
-	const onSendSocketMessage = (socket: WebSocket) => {
-		console.log("this happened");
-		socket.CLOSED;
-		socket?.send("ls -l");
+
+		const output = (await resp?.json()).output;
+		console.log(output);
+		terminal?.write(`$  ${output}`, () => console.log("written"));
 	};
 
 	return (
-		<>
-			<div className="w-fit h-fit p-4 border-2 border-black m-2">
-				<div className="flex w-full">
+		<div className="grid grid-cols-7 h-screen">
+			<div className="col-span-2">
+				{FileStructure.fromString(fileSystemString).toJsx()}
+			</div>
+
+			<div className="col-span-5 h-full flex flex-col">
+				<div className="flex w-full bg-stone-700">
 					{Object.keys(filetoCode).map((val) => (
 						<button
 							key={val}
@@ -108,22 +85,17 @@ function Playground() {
 							{val}
 						</button>
 					))}
-					<button onClick={onRunCode} className="mx-2">
-						Run
-					</button>
 					<button
-						onClick={() => {
-							if (socket) onSendSocketMessage(socket);
-						}}
+						onClick={() => onRunCode(terminal)}
+						className="mx-2"
 					>
-						Send
+						Run
 					</button>
 				</div>
 				<Editor
-					language="python"
+					language={type as string}
 					defaultValue={filetoCode[activeFileName]}
-					height={200}
-					width={800}
+					className="w-full h-full grow"
 					theme="vs-dark"
 					path={activeFileName}
 					onMount={(editor) =>
@@ -139,9 +111,9 @@ function Playground() {
 						}))
 					}
 				/>
-				<div className="" id="terminal"></div>
+				<div className="mt-4" id="terminal"></div>
 			</div>
-		</>
+		</div>
 	);
 }
 
