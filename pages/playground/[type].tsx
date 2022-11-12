@@ -1,9 +1,11 @@
 import Editor from "@monaco-editor/react";
+import { editor } from "monaco-editor";
 import { useRouter } from "next/router";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { AiFillCloseCircle } from "react-icons/ai";
 import { Terminal } from "xterm";
 import FileSystemComponent from "../../components/FileSystemComponent";
+import { extensionToLanguage } from "../../utils/constants";
 import { FileStructure } from "../../utils/DataStructure";
 import { sendRequestToRceServer } from "../../utils/sendRequests";
 
@@ -11,15 +13,18 @@ function Playground() {
 	const router = useRouter();
 	const { type } = router.query;
 	const [containerId, setContainerId] = useState();
-	const [filetoCode, setFileToCode] = useState<Record<string, string>>({});
 	const [terminal, setTerminal] = useState<Terminal>();
 	const [fileSystemString, setFileSystemString] = useState();
-	const [activeFileName, setActiveFileName] = useState("./script.py");
+	const [activeFileName, setActiveFileName] = useState("");
 	const [codeOutput, setCodeOutput] = useState("");
+	const [currentlyOpenedFiles, setCurrentlyOpenedFiles] = useState<string[]>(
+		[]
+	);
 	const [openedFiles, setOpenedFiles] = useState<string[]>([]);
 	const [terminalCommand, setTerminalCommand] = useState("");
 	const [sendTerminalCommand, setSendTerminalCommand] = useState(false);
 	const [terminalOutput, setTerminalOutput] = useState<string>();
+	const [editor, setEditor] = useState<editor.IStandaloneCodeEditor>();
 	const [key, setKey] = useState(0);
 
 	useEffect(() => {
@@ -35,11 +40,24 @@ function Playground() {
 	}, []);
 
 	useEffect(() => {
-		setFileToCode((prev) => {
-			if (Object.hasOwn(prev, activeFileName)) return prev;
-			return { ...prev, [activeFileName]: "" };
-		});
+		if (activeFileName && !openedFiles.includes(activeFileName)) {
+			sendRequestToRceServer("POST", {
+				language: "shell",
+				containerId,
+				fileName: "",
+				code: `cat ${activeFileName}`,
+			}).then((val) => {
+				val?.json().then((body) => {
+					editor?.setValue(body.output as string);
+				});
+			});
+		}
+
 		setOpenedFiles((prev) => {
+			if (prev.includes(activeFileName)) return prev;
+			return [...prev, activeFileName];
+		});
+		setCurrentlyOpenedFiles((prev) => {
 			if (prev.includes(activeFileName)) return prev;
 			return [...prev, activeFileName];
 		});
@@ -127,7 +145,7 @@ function Playground() {
 		if (!terminal) return;
 		const resp = await sendRequestToRceServer("POST", {
 			language: type as string,
-			code: filetoCode[activeFileName],
+			code: editor?.getValue(),
 			containerId,
 			fileName: activeFileName,
 		});
@@ -138,69 +156,69 @@ function Playground() {
 	};
 
 	return (
-		<div className="grid grid-cols-10 h-screen">
-			<div className="col-span-2 bg-black border-r-2 border-white">
+		<div
+			className="flex w-screen h-screen
+		"
+		>
+			<div className="w-2/12 bg-stone-800 border-r-2 border-white">
 				<div className="w-full">{FileSystemJsx}</div>
 			</div>
-			<div className="col-span-5 h-full flex flex-col">
+			<div className="w-8/12 h-full flex flex-col">
 				<div className="flex w-full bg-stone-700">
-					{openedFiles.map((val) => (
-						<div
-							className={`flex items-center p-1
+					{currentlyOpenedFiles.map((val) => {
+						if (!val) return <></>;
+						return (
+							<div
+								className={`flex items-center p-1
 						${activeFileName === val ? "bg-amber-400" : ""}
 						`}
-						>
-							<button
-								key={val}
-								disabled={activeFileName === val}
-								onClick={() => {
-									setActiveFileName(val);
-								}}
-								className={`px-2`}
 							>
-								{val.split("/").pop()}
-							</button>
-							<button
-								onClick={() =>
-									setOpenedFiles((prev) =>
-										prev.filter((f) => f !== val)
-									)
-								}
-							>
-								<AiFillCloseCircle />
-							</button>
-						</div>
-					))}
+								<button
+									key={val}
+									disabled={activeFileName === val}
+									onClick={() => {
+										setActiveFileName(val);
+									}}
+									className={`px-2`}
+								>
+									{val.split("/").pop()}
+								</button>
+								<button
+									onClick={() =>
+										setCurrentlyOpenedFiles((prev) =>
+											prev.filter((f) => f !== val)
+										)
+									}
+								>
+									<AiFillCloseCircle />
+								</button>
+							</div>
+						);
+					})}
 					<button
 						onClick={() => onRunCode(terminal)}
-						className="mx-2 p-1"
+						className="bg-green-500 p-1 ml-auto"
 					>
 						Run
 					</button>
 				</div>
 				<Editor
-					language={type as string}
-					defaultValue={filetoCode[activeFileName]}
-					className="w-full h-full grow"
+					language={
+						extensionToLanguage[activeFileName.split(".").pop()!]
+					}
+					className="w-full grow"
 					theme="vs-dark"
 					path={activeFileName}
-					onMount={(editor) =>
-						setFileToCode((prev) => ({
-							...prev,
-							[activeFileName]: editor.getValue(),
-						}))
-					}
-					onChange={(value) =>
-						setFileToCode((prev) => ({
-							...prev,
-							[activeFileName]: value || "",
-						}))
-					}
+					onMount={(editor) => setEditor(editor)}
 				/>
-				<div className="mt-4" id="terminal"></div>
+				<div className="flex w-full bg-stone-700 p-2">Terminal</div>
+				<div className="" id="terminal"></div>
 			</div>
-			<div className="col-span-3 bg-black border-l-2 border-white text-white p-2">
-				{codeOutput}
+			<div className="w-2/12  bg-black border-l-2 border-white text-white">
+				<div className="bg-stone-700 p-1 w-full text-black px-28">
+					Console
+				</div>
+				<span>{codeOutput}</span>
 			</div>
 		</div>
 	);
