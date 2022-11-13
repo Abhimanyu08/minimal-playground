@@ -14,9 +14,8 @@ const handler = async (req: NextRequest) => {
         body: req.body,
     });
 
-
+    console.log(resp.body)
     const body = await resp.json()
-    console.log(body)
 
     if (!body) {
 
