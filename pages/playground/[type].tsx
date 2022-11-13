@@ -1,9 +1,9 @@
 import Editor from "@monaco-editor/react";
 import { editor } from "monaco-editor";
 import { useRouter } from "next/router";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { AiFillCloseCircle } from "react-icons/ai";
-import { Terminal } from "xterm";
+// import { Terminal } from "xterm";
 import FileSystemComponent from "../../components/FileSystemComponent";
 import { extensionToLanguage } from "../../utils/constants";
 import { FileStructure } from "../../utils/DataStructure";
@@ -13,7 +13,7 @@ function Playground() {
 	const router = useRouter();
 	const { type } = router.query;
 	const [containerId, setContainerId] = useState();
-	const [terminal, setTerminal] = useState<Terminal>();
+	const [terminal, setTerminal] = useState<any>();
 	const [fileSystemString, setFileSystemString] = useState();
 	const [activeFileName, setActiveFileName] = useState("");
 	const [codeOutput, setCodeOutput] = useState("");
@@ -77,30 +77,36 @@ function Playground() {
 	}, [fileSystemString]);
 
 	useEffect(() => {
-		const term = new Terminal({
-			disableStdin: false,
-			tabStopWidth: 4,
-			cursorBlink: true,
-			rows: 10,
-			cols: 100,
-		});
-		const terminalElem = document.getElementById("terminal");
-		terminalElem?.replaceChildren("");
-		if (terminalElem) term.open(terminalElem);
-		term.onKey((key) => {
-			term.clear();
+		const initTerminal = async () => {
+			const { Terminal } = await import("xterm");
+			const term = new Terminal({
+				disableStdin: false,
+				tabStopWidth: 4,
+				cursorBlink: true,
+				rows: 10,
+				cols: 100,
+			});
+			const terminalElem = document.getElementById("terminal");
+			terminalElem?.replaceChildren("");
+			if (terminalElem) term.open(terminalElem);
+			term.onKey((key) => {
+				term.clear();
 
-			if (key.key === "\u007f") {
-				setTerminalCommand((prev) => prev.slice(0, prev.length - 1));
-				return;
-			}
-			if (key.key === "\r") {
-				setSendTerminalCommand(true);
-				return;
-			}
-			setTerminalCommand((prev) => prev + key.key);
-		});
-		setTerminal(term);
+				if (key.key === "\u007f") {
+					setTerminalCommand((prev) =>
+						prev.slice(0, prev.length - 1)
+					);
+					return;
+				}
+				if (key.key === "\r") {
+					setSendTerminalCommand(true);
+					return;
+				}
+				setTerminalCommand((prev) => prev + key.key);
+			});
+			setTerminal(term);
+		};
+		initTerminal();
 	}, []);
 
 	useEffect(() => {
@@ -141,7 +147,7 @@ function Playground() {
 		terminal?.writeln(terminalOutput || "");
 	}, [terminalOutput]);
 
-	const onRunCode = async (terminal: Terminal | undefined) => {
+	const onRunCode = async (terminal: any) => {
 		if (!terminal) return;
 		const resp = await sendRequestToRceServer("POST", {
 			language: type as string,
@@ -151,7 +157,6 @@ function Playground() {
 		});
 
 		const output = (await resp?.json()).output;
-		console.log(output);
 		setCodeOutput(output);
 	};
 
@@ -169,6 +174,7 @@ function Playground() {
 						if (!val) return <></>;
 						return (
 							<div
+								key={val}
 								className={`flex items-center p-1
 						${activeFileName === val ? "bg-amber-400" : ""}
 						`}
