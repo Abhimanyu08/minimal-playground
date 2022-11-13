@@ -12,5 +12,14 @@ export async function sendRequestToRceServer(method: "POST" | "DELETE", body: { 
         return resp
     }
 
+    const resp = fetch("https://api.rce-blog.xyz/playground" as string, {
+        method,
+        mode: "cors",
+        headers: {
+            "Content-Type": "application/json",
+        },
+        body: JSON.stringify(body),
+    });
+    return resp
 
 }
