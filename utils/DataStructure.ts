@@ -44,12 +44,10 @@ export class FileStructure {
 	static fromString(fsString: string) {
 		const pattern = /(\..*?):(\r\n(.*?))?\r\n/g;
 		const matchedArr = Array.from(fsString.matchAll(pattern));
-		console.log(fsString);
 		const addressToStruct: Record<string, FileStructure> = {};
 		matchedArr.map((match) => {
 			const address = match.at(1);
 			const filesAndFolders = match.at(3);
-			console.log(filesAndFolders?.split(/[\t' ']/));
 			if (!address) return;
 			let name, parent;
 			if (address === ".") {
@@ -62,7 +60,6 @@ export class FileStructure {
 				parent = matchForNameAndParent?.at(1);
 				name = matchForNameAndParent?.at(2);
 			}
-			console.log("parent, name ->", parent, name);
 			let parentStruct: FileStructure | null = null;
 			if (parent && Object.hasOwn(addressToStruct, parent)) {
 				parentStruct = addressToStruct[parent];

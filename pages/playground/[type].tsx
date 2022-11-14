@@ -68,6 +68,7 @@ function Playground() {
 	}, [type]);
 
 	useEffect(() => {
+		if (!editor) return;
 		if (activeFileName && !openedFiles.includes(activeFileName)) {
 			sendRequestToRceServer("POST", {
 				language: "shell",
@@ -92,7 +93,7 @@ function Playground() {
 			if (prev.includes(activeFileName)) return prev;
 			return [...prev, activeFileName];
 		});
-	}, [activeFileName]);
+	}, [activeFileName, editor]);
 
 	const FileSystemJsx = useMemo(() => {
 		if (!fileSystemString) return;
@@ -262,7 +263,9 @@ function Playground() {
 						className="w-full grow"
 						theme="vs-dark"
 						path={activeFileName}
-						onMount={(editor) => setEditor(editor)}
+						onMount={(editor) => {
+							setEditor(editor);
+						}}
 						onChange={() =>
 							setFileToSaved((prev) => ({
 								...prev,
