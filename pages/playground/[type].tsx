@@ -23,6 +23,7 @@ function Playground() {
 	);
 	const [fileToSaved, setFileToSaved] = useState<Record<string, boolean>>({});
 	const [openedFiles, setOpenedFiles] = useState<string[]>([]);
+	const [fileToCode, setFileToCode] = useState<Record<string, string>>({});
 	const [terminalCommand, setTerminalCommand] = useState("");
 	const [sendTerminalCommand, setSendTerminalCommand] = useState(false);
 	const [terminalOutput, setTerminalOutput] = useState<string>();
@@ -78,11 +79,15 @@ function Playground() {
 			}).then((val) => {
 				val?.json().then((body) => {
 					editor?.setValue(body.output as string);
+					setFileToCode((prev) => ({
+						...prev,
+						[activeFileName]: body.output,
+					}));
 				});
 			});
 		}
 		if (!Object.hasOwn(fileToSaved, activeFileName)) {
-			setFileToSaved((prev) => ({ ...prev, [activeFileName]: false }));
+			setFileToSaved((prev) => ({ ...prev, [activeFileName]: true }));
 		}
 
 		setOpenedFiles((prev) => {
@@ -261,15 +266,22 @@ function Playground() {
 							]
 						}
 						className="w-full grow"
+						value={fileToCode[activeFileName] || ""}
 						theme="vs-dark"
 						path={activeFileName}
 						onMount={(editor) => {
 							setEditor(editor);
+							editor.onKeyDown(() => {
+								setFileToSaved((prev) => ({
+									...prev,
+									[activeFileName]: false,
+								}));
+							});
 						}}
-						onChange={() =>
-							setFileToSaved((prev) => ({
+						onChange={(value) =>
+							setFileToCode((prev) => ({
 								...prev,
-								[activeFileName]: false,
+								[activeFileName]: value || "",
 							}))
 						}
 					/>
