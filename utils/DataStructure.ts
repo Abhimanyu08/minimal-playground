@@ -70,7 +70,7 @@ export class FileStructure {
 			const depth = Array.from(address.matchAll(/\//g)).length;
 			const files = filesAndFolders
 				?.split(/[\t' ']/)
-				.filter((f) => /\./.test(f))
+				.filter((f) => f.split('.').length === 2)
 				.map((f) => new FileStructure(f, [], "file", depth + 1, `${address}/${f}`));
 			const struct = new FileStructure(
 				name!,

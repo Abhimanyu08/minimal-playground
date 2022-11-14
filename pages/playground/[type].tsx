@@ -7,12 +7,13 @@ import { AiFillCloseCircle } from "react-icons/ai";
 import FileSystemComponent from "../../components/FileSystemComponent";
 import { extensionToLanguage } from "../../utils/constants";
 import { FileStructure } from "../../utils/DataStructure";
+import getContainerInfo from "../../utils/getContainerInfo";
 import { sendRequestToRceServer } from "../../utils/sendRequests";
 
 function Playground() {
 	const router = useRouter();
 	const { type } = router.query;
-	const [containerId, setContainerId] = useState();
+	const [containerId, setContainerId] = useState<string>();
 	const [terminal, setTerminal] = useState<any>();
 	const [fileSystemString, setFileSystemString] = useState();
 	const [activeFileName, setActiveFileName] = useState("");
@@ -20,6 +21,7 @@ function Playground() {
 	const [currentlyOpenedFiles, setCurrentlyOpenedFiles] = useState<string[]>(
 		[]
 	);
+	const [fileToSaved, setFileToSaved] = useState<Record<string, boolean>>({});
 	const [openedFiles, setOpenedFiles] = useState<string[]>([]);
 	const [terminalCommand, setTerminalCommand] = useState("");
 	const [sendTerminalCommand, setSendTerminalCommand] = useState(false);
@@ -29,15 +31,41 @@ function Playground() {
 
 	useEffect(() => {
 		if (containerId !== undefined) return;
-		sendRequestToRceServer("POST", {
-			language: type as string,
-		}).then((val) => {
-			val?.json().then((body) => {
-				setContainerId(body.containerId);
-				setFileSystemString(body.files);
+		if (localStorage.getItem("playground-container")) {
+			const info = getContainerInfo(
+				localStorage.getItem("playground-container") as string
+			);
+			if (info.language === type) {
+				setContainerId(info.containerId);
+				sendRequestToRceServer("POST", {
+					language: "shell",
+					containerId: info.containerId,
+					code: "ls -R",
+					fileName: "",
+				}).then((val) => {
+					val?.json().then((body) => {
+						setFileSystemString(body.output);
+					});
+				});
+				return;
+			}
+		}
+
+		if (type) {
+			sendRequestToRceServer("POST", {
+				language: type as string,
+			}).then((val) => {
+				val?.json().then((body) => {
+					setContainerId(body.containerId);
+					localStorage.setItem(
+						"playground-container",
+						`language-${type};containerId-${body.containerId}`
+					);
+					setFileSystemString(body.files);
+				});
 			});
-		});
-	}, []);
+		}
+	}, [type]);
 
 	useEffect(() => {
 		if (activeFileName && !openedFiles.includes(activeFileName)) {
@@ -51,6 +79,9 @@ function Playground() {
 					editor?.setValue(body.output as string);
 				});
 			});
+		}
+		if (!Object.hasOwn(fileToSaved, activeFileName)) {
+			setFileToSaved((prev) => ({ ...prev, [activeFileName]: false }));
 		}
 
 		setOpenedFiles((prev) => {
@@ -162,6 +193,7 @@ function Playground() {
 		});
 
 		const output = (await resp?.json()).output;
+		setFileToSaved((prev) => ({ ...prev, [activeFileName]: true }));
 		setCodeOutput(output);
 	};
 
@@ -181,7 +213,8 @@ function Playground() {
 							<div
 								key={val}
 								className={`flex items-center p-1
-						${activeFileName === val ? "bg-amber-400" : ""}
+								${fileToSaved[val] ? "" : "underline"}
+						${activeFileName === val ? "bg-amber-500" : ""}
 						`}
 							>
 								<button
@@ -195,33 +228,53 @@ function Playground() {
 									{val.split("/").pop()}
 								</button>
 								<button
-									onClick={() =>
+									onClick={() => {
 										setCurrentlyOpenedFiles((prev) =>
 											prev.filter((f) => f !== val)
-										)
-									}
+										);
+										if (activeFileName === val) {
+											setActiveFileName("");
+										}
+									}}
 								>
 									<AiFillCloseCircle />
 								</button>
 							</div>
 						);
 					})}
+
 					<button
 						onClick={() => onRunCode(terminal)}
 						className="bg-green-500 p-1 ml-auto"
 					>
-						Run
+						{activeFileName
+							? `Save/Run ${activeFileName.split("/").pop()}`
+							: "Select a file"}
 					</button>
 				</div>
-				<Editor
-					language={
-						extensionToLanguage[activeFileName.split(".").pop()!]
-					}
-					className="w-full grow"
-					theme="vs-dark"
-					path={activeFileName}
-					onMount={(editor) => setEditor(editor)}
-				/>
+				{activeFileName ? (
+					<Editor
+						language={
+							extensionToLanguage[
+								activeFileName.split(".").pop()!
+							]
+						}
+						className="w-full grow"
+						theme="vs-dark"
+						path={activeFileName}
+						onMount={(editor) => setEditor(editor)}
+						onChange={() =>
+							setFileToSaved((prev) => ({
+								...prev,
+								[activeFileName]: false,
+							}))
+						}
+					/>
+				) : (
+					<div className="bg-stone-900 grow text-white flex items-center justify-center">
+						Select a file to Edit
+					</div>
+				)}
 				<div className="flex w-full bg-stone-700 p-2">Terminal</div>
 				<div className="" id="terminal"></div>
 			</div>
