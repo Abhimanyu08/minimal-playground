@@ -90,9 +90,11 @@ function Playground() {
 			terminalElem?.replaceChildren("");
 			if (terminalElem) term.open(terminalElem);
 			term.onKey((key) => {
-				term.clear();
-
+				// term.clear();
 				if (key.key === "\u007f") {
+					term.write("\b \b");
+					// term.clear();
+
 					setTerminalCommand((prev) =>
 						prev.slice(0, prev.length - 1)
 					);
@@ -103,6 +105,7 @@ function Playground() {
 					return;
 				}
 				setTerminalCommand((prev) => prev + key.key);
+				term.write(key.key);
 			});
 			setTerminal(term);
 		};
@@ -111,6 +114,12 @@ function Playground() {
 
 	useEffect(() => {
 		if (sendTerminalCommand) {
+			if (terminalCommand === "clear") {
+				terminal.clear();
+				setTerminalCommand("");
+				setSendTerminalCommand(false);
+				return;
+			}
 			sendRequestToRceServer("POST", {
 				language: "shell",
 				containerId,
@@ -140,11 +149,7 @@ function Playground() {
 	}, [sendTerminalCommand]);
 
 	useEffect(() => {
-		terminal?.writeln(terminalCommand);
-	}, [terminalCommand]);
-
-	useEffect(() => {
-		terminal?.writeln(terminalOutput || "");
+		terminal?.write("\r\n" + terminalOutput + "\r\n" || "");
 	}, [terminalOutput]);
 
 	const onRunCode = async (terminal: any) => {
