@@ -239,7 +239,19 @@ function Playground() {
 											prev.filter((f) => f !== val)
 										);
 										if (activeFileName === val) {
-											setActiveFileName("");
+											if (
+												currentlyOpenedFiles.length ===
+												1
+											) {
+												setActiveFileName("");
+												return;
+											}
+											setActiveFileName(
+												currentlyOpenedFiles.at(
+													currentlyOpenedFiles.length -
+														2
+												) || ""
+											);
 										}
 									}}
 								>
