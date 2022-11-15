@@ -269,15 +269,7 @@ function Playground() {
 						value={fileToCode[activeFileName] || ""}
 						theme="vs-dark"
 						path={activeFileName}
-						onMount={(editor) => {
-							setEditor(editor);
-							editor.onKeyDown(() => {
-								setFileToSaved((prev) => ({
-									...prev,
-									[activeFileName]: false,
-								}));
-							});
-						}}
+						onMount={(editor) => setEditor(editor)}
 						onChange={(value) =>
 							setFileToCode((prev) => ({
 								...prev,

@@ -26,7 +26,7 @@ function FileSystemComponent({
 			<div
 				className={`${
 					depthToPadding[fileRoot.depth]
-				} text-white select-none`}
+				} text-white select-none underline`}
 				onClick={() => {
 					setActiveFileName(fileRoot.address);
 				}}
